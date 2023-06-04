@@ -58,10 +58,45 @@ const login = async (req, res) => {
   }
 };
 
+// change password
+const changePassword = async (req, res) => {
+  const { current_password, new_password, confirm_password } = req.body;
+  const hashedPassword = await bcrypt.hash(new_password, 10);
+
+  if (current_password && new_password && confirm_password) {
+    const findAuthUser = await authUser.findOne({
+      username: req.username,
+    });
+
+    const isValidPassword = await bcrypt.compare(
+      current_password,
+      findAuthUser.password
+    );
+    if (isValidPassword) {
+      if (new_password === confirm_password) {
+        findAuthUser.password = hashedPassword;
+        await findAuthUser.save();
+
+        res.status(200).json({
+          message: "Change password sucessfylly",
+        });
+      } else {
+        res.status(401).json({
+          message: "new Password and confirm password not match",
+        });
+      }
+    } else {
+      res.status(401).json({
+        message: "Invalid current password",
+      });
+    }
+  } else {
+    res.status(401).json({ message: "All field are required" });
+  }
+};
+
 module.exports = {
   signup,
   login,
-  // createUser,
-  // UpdateUser,
-  // deleteUser,
+  changePassword,
 };

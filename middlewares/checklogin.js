@@ -11,7 +11,11 @@ const checkLogin = (req, res, next) => {
     req.email = email;
     next();
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      error: true,
+      error_message: error.message,
+      message: "Authentication failed !",
+    });
   }
 };
 
