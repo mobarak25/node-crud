@@ -95,8 +95,61 @@ const changePassword = async (req, res) => {
   }
 };
 
+const sendUserPasswordResetEmail = async (req, res) => {
+  const { email } = req.body;
+  if (email) {
+    const user = await authUser.findOne({ email: email });
+    if (user) {
+      const secret = user.id + config.app.token_sectet;
+      // Genarate token
+      const token = jwt.sign({ userId: user.id }, secret, {
+        expiresIn: "15m",
+      });
+      //Genarate link
+      const link = `http://localhost:4000/api/users/reset/${user.id}/${token}`;
+      console.log(link);
+      res
+        .status(200)
+        .send({ message: "We send a link in email... please check email" });
+    } else {
+      res.status(401).send({ message: "Email is not exists" });
+    }
+  } else {
+    res.status(401).send({ message: "Email field is required" });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const { password, confirm_password } = req.body;
+  const { id, token } = req.params;
+  const user = await authUser.findOne({ id: id });
+
+  // Genarate new token
+  const secret = user.id + config.app.token_sectet;
+
+  try {
+    jwt.verify(token, secret);
+    if (password && confirm_password) {
+      if (password !== confirm_password) {
+        res.status(401).send({ message: "Password not match" });
+      } else {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+        await user.save();
+        res.status(200).send({ message: "Password reset successfully" });
+      }
+    } else {
+      res.status(401).send({ message: "All field are required" });
+    }
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};
+
 module.exports = {
   signup,
   login,
   changePassword,
+  sendUserPasswordResetEmail,
+  resetPassword,
 };
