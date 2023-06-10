@@ -1,13 +1,24 @@
 const express = require("express");
 const cors = require("cors"); //Cross origin
+const multer = require("multer");
+const upload = multer();
+
 require("./config/db");
-const userRouter = require("./routes/user.route");
-const authRouter = require("./routes/auth.route");
 
 const app = express();
 app.use(cors());
+
+// for parsing application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+
+app.use(express.json()); // for parsing application/json
+
+// for parsing multipart/form-data
+app.use(upload.array());
+app.use(express.static("public"));
+
+const userRouter = require("./routes/user.route");
+const authRouter = require("./routes/auth.route");
 app.use("/api/users", userRouter);
 app.use("/api/users", authRouter);
 

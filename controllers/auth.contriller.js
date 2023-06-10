@@ -1,23 +1,37 @@
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 
 const authUser = require("../models/auth.model");
 const config = require("../config/config");
+const transporter = require("../config/email.comfig");
 
 //signup user
 const signup = async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    const newUser = new authUser({
-      id: uuidv4(),
-      name: req.body.name,
-      username: req.body.username,
-      email: req.body.email,
-      password: hashedPassword,
-    });
-    await newUser.save();
-    res.status(201).json(newUser);
+    const { email } = req.body;
+    const exists = await authUser.findOne({ email: email });
+
+    if (exists == null) {
+      const hashedPassword = await bcrypt.hash(req.body.password, 10);
+      const newUser = new authUser({
+        id: uuidv4(),
+        name: req.body.name,
+        username: req.body.username,
+        email: req.body.email,
+        password: hashedPassword,
+      });
+      await newUser.save();
+      res.status(201).send({
+        id: newUser.id,
+        name: newUser.name,
+        username: newUser.username,
+        email: newUser.email,
+      });
+    } else {
+      res.status(401).send({ message: "Email already exists" });
+    }
   } catch (error) {
     res.status(500).send(error.message);
   }
@@ -61,12 +75,12 @@ const login = async (req, res) => {
 // change password
 const changePassword = async (req, res) => {
   const { current_password, new_password, confirm_password } = req.body;
-  const hashedPassword = await bcrypt.hash(new_password, 10);
 
   if (current_password && new_password && confirm_password) {
     const findAuthUser = await authUser.findOne({
       username: req.username,
     });
+    const hashedPassword = await bcrypt.hash(new_password, 10);
 
     const isValidPassword = await bcrypt.compare(
       current_password,
@@ -101,16 +115,31 @@ const sendUserPasswordResetEmail = async (req, res) => {
     const user = await authUser.findOne({ email: email });
     if (user) {
       const secret = user.id + config.app.token_sectet;
+
       // Genarate token
       const token = jwt.sign({ userId: user.id }, secret, {
         expiresIn: "15m",
       });
       //Genarate link
       const link = `http://localhost:4000/api/users/reset/${user.id}/${token}`;
-      console.log(link);
-      res
-        .status(200)
-        .send({ message: "We send a link in email... please check email" });
+
+      const transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        auth: {
+          user: "geoffrey.parker@ethereal.email",
+          pass: "eDmqYq4mdPK3J27Z32",
+        },
+      });
+      let info = await transporter.sendMail({
+        from: '"Fred Foo " <mobarakali62@gmail.com>', // sender address
+        to: "mobarakali62@gmail.com", // list of receivers
+        subject: "Password Reset", // Subject line
+
+        html: `<a href="${link}">Click Here</a> to reset your password`, // html body
+      });
+
+      res.status(200).send({ message: "please check email", link: link });
     } else {
       res.status(401).send({ message: "Email is not exists" });
     }
@@ -119,6 +148,7 @@ const sendUserPasswordResetEmail = async (req, res) => {
   }
 };
 
+// Reset password
 const resetPassword = async (req, res) => {
   const { password, confirm_password } = req.body;
   const { id, token } = req.params;
@@ -146,10 +176,25 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const logedinUser = async (req, res) => {
+  try {
+    const user = await authUser
+      .findOne({
+        username: req.username,
+        email: req.email,
+      })
+      .select("-password");
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};
 module.exports = {
   signup,
   login,
   changePassword,
   sendUserPasswordResetEmail,
   resetPassword,
+  logedinUser,
 };
